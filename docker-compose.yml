@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  iot-dashboard:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    restart: unless-stopped
+    volumes:
+      - ./server.js:/app/server.js
+      - ./dashboard.html:/app/public/dashboard.html
+    networks:
+      - iot-network
+
+networks:
+  iot-network:
+    driver: bridge
