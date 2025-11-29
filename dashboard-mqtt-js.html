@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Device Dashboard - GPS & RFID Tracking</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --color-primary: #208090;
+            --color-primary-hover: #1a6673;
+            --color-success: #2bb875;
+            --color-error: #dc3545;
+            --color-bg: #fafaf8;
+            --color-surface: #ffffff;
+            --color-text: #133b3b;
+            --color-text-secondary: #666666;
+            --color-border: #e0e0e0;
+            --space-4: 4px;
+            --space-8: 8px;
+            --space-12: 12px;
+            --space-16: 16px;
+            --radius-base: 8px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--color-bg);
+            color: var(--color-text);
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .header {
+            background: var(--color-surface);
+            border-bottom: 1px solid var(--color-border);
+            padding: var(--space-16);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: var(--space-12);
+            color: var(--color-primary);
+        }
+
+        .config-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: var(--space-12);
+            align-items: end;
+        }
+
+        .config-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .config-group label {
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: var(--space-4);
+            text-transform: uppercase;
+            color: var(--color-text-secondary);
+        }
+
+        .config-group input {
+            padding: var(--space-8) var(--space-12);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-base);
+            font-size: 13px;
+            background: var(--color-surface);
+            color: var(--color-text);
+        }
+
+        .config-group input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(32, 128, 144, 0.1);
+        }
+
+        .status-group {
+            display: flex;
+            gap: var(--space-8);
+            align-items: center;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #999;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connected {
+            background: var(--color-success);
+            animation: pulse-green 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes pulse-green {
+            0%, 100% { opacity: 1; box-shadow: 0 0 10px var(--color-success); }
+            50% { opacity: 0.8; }
+        }
+
+        .status-text {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+        }
+
+        .status-text.connected {
+            color: var(--color-success);
+            font-weight: 600;
+        }
+
+        .btn {
+            padding: var(--space-8) var(--space-16);
+            border: none;
+            border-radius: var(--radius-base);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 200ms;
+            text-transform: uppercase;
+        }
+
+        .btn-primary {
+            background: var(--color-primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--color-primary-hover);
+        }
+
+        .btn-primary:disabled {
+            background: #999;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .btn-disconnect {
+            background: var(--color-error);
+            color: white;
+            display: none;
+        }
+
+        .btn-disconnect.show {
+            display: block;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: var(--space-8);
+        }
+
+        .content {
+            display: flex;
+            flex: 1;
+            gap: var(--space-12);
+            padding: var(--space-12);
+            overflow: hidden;
+        }
+
+        .map-section {
+            flex: 0 0 70%;
+            background: var(--color-surface);
+            border-radius: var(--radius-base);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .table-section {
+            flex: 0 0 30%;
+            display: flex;
+            flex-direction: column;
+            background: var(--color-surface);
+            border-radius: var(--radius-base);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .table-header {
+            padding: var(--space-16);
+            border-bottom: 1px solid var(--color-border);
+            background: linear-gradient(135deg, #f0f7f8, #ffffff);
+        }
+
+        .table-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--color-primary);
+            margin: 0;
+        }
+
+        .table-wrapper {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .rfid-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .rfid-table thead th {
+            position: sticky;
+            top: 0;
+            background: var(--color-bg);
+            padding: var(--space-8) var(--space-12);
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid var(--color-border);
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .rfid-table tbody tr {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .rfid-table tbody tr:hover {
+            background: rgba(32, 128, 144, 0.05);
+        }
+
+        .rfid-table td {
+            padding: var(--space-8) var(--space-12);
+        }
+
+        .rfid-table .device-id {
+            font-weight: 600;
+            color: var(--color-primary);
+        }
+
+        .rfid-table .tag-uid {
+            font-family: monospace;
+            background: rgba(32, 128, 144, 0.1);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+
+        .empty-message {
+            padding: var(--space-16);
+            text-align: center;
+            color: var(--color-text-secondary);
+            font-style: italic;
+        }
+
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-12);
+            padding: var(--space-12);
+            background: rgba(32, 128, 144, 0.05);
+            border-top: 1px solid var(--color-border);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--color-primary);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 IoT Device Dashboard</h1>
+            <div class="config-panel">
+                <div class="config-group">
+                    <label>MQTT Broker (ws://ip:port)</label>
+                    <input type="text" id="brokerUrl" placeholder="ws://localhost:9001" value="ws://localhost:8083">
+                </div>
+                <div class="config-group">
+                    <label>GPS Topic</label>
+                    <input type="text" id="gpsTopic" placeholder="devices/gps" value="devices/gps">
+                </div>
+                <div class="config-group">
+                    <label>RFID Topic</label>
+                    <input type="text" id="rfidTopic" placeholder="devices/rfid" value="devices/rfid">
+                </div>
+                <div class="config-group">
+                    <label>Username (optional)</label>
+                    <input type="text" id="username" placeholder="Leave blank">
+                </div>
+                <div class="config-group">
+                    <label>Password (optional)</label>
+                    <input type="password" id="password" placeholder="Leave blank">
+                </div>
+                <div style="grid-column: span 1;"></div>
+                <div class="status-group">
+                    <div class="status-indicator" id="statusIndicator"></div>
+                    <span class="status-text" id="statusText">Disconnected</span>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-primary" id="connectBtn" onclick="connectMQTT()">Connect</button>
+                    <button class="btn btn-disconnect" id="disconnectBtn" onclick="disconnectMQTT()">Disconnect</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="map-section">
+                <div id="map"></div>
+            </div>
+
+            <div class="table-section">
+                <div class="table-header">
+                    <h3>📡 RFID Scans</h3>
+                </div>
+                <div class="table-wrapper">
+                    <table class="rfid-table">
+                        <thead>
+                            <tr>
+                                <th>Device</th>
+                                <th>Tag UID</th>
+                                <th>Message</th>
+                                <th>Location</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rfidBody">
+                            <tr><td colspan="5" class="empty-message">Waiting for data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <div class="stat-value" id="deviceCount">0</div>
+                        <div class="stat-label">Active Devices</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="scanCount">0</div>
+                        <div class="stat-label">Total Scans</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="lastUpdate">--</div>
+                        <div class="stat-label">Last Update</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MQTT.js Library -->
+    <script src="https://unpkg.com/mqtt@5.0.5/dist/mqtt.min.js"></script>
+    <!-- Leaflet -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+    <script>
+        // ============ STATE MANAGEMENT ============
+        const state = {
+            devices: new Map(),
+            rfidScans: [],
+            markers: new Map(),
+            map: null,
+            mqtt: null,
+            connected: false
+        };
+
+        // ============ MAP INITIALIZATION ============
+        function initMap() {
+            state.map = L.map('map').setView([20.5937, 78.9629], 5);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap',
+                maxZoom: 19
+            }).addTo(state.map);
+        }
+
+        // ============ MQTT CONNECTION ============
+        async function connectMQTT() {
+            const brokerUrl = document.getElementById('brokerUrl').value.trim();
+            const gpsTopic = document.getElementById('gpsTopic').value.trim();
+            const rfidTopic = document.getElementById('rfidTopic').value.trim();
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+
+            if (!brokerUrl || !gpsTopic || !rfidTopic) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            try {
+                document.getElementById('connectBtn').disabled = true;
+                updateStatus('Connecting...', false);
+
+                // MQTT connection options
+                const options = {
+                    clientId: `dashboard_${Date.now()}`,
+                    clean: true,
+                    reconnectPeriod: 5000,
+                    connectTimeout: 10000,
+                    keepaliveInterval: 60
+                };
+
+                if (username) {
+                    options.username = username;
+                }
+                if (password) {
+                    options.password = password;
+                }
+
+                // Connect to MQTT broker
+                state.mqtt = mqtt.connect(brokerUrl, options);
+
+                state.mqtt.on('connect', () => {
+                    console.log('✅ Connected to MQTT broker');
+                    updateStatus('Connected', true);
+                    document.getElementById('connectBtn').style.display = 'none';
+                    document.getElementById('disconnectBtn').classList.add('show');
+
+                    // Subscribe to topics
+                    state.mqtt.subscribe([gpsTopic, rfidTopic], (err) => {
+                        if (err) {
+                            console.error('Subscribe error:', err);
+                            alert('Failed to subscribe to topics');
+                        } else {
+                            console.log(`✅ Subscribed to ${gpsTopic} and ${rfidTopic}`);
+                        }
+                    });
+                });
+
+                state.mqtt.on('message', (topic, message) => {
+                    try {
+                        const payload = JSON.parse(message.toString());
+                        console.log(`📨 Message on ${topic}:`, payload);
+
+                        if (topic === gpsTopic) {
+                            handleGPSMessage(payload);
+                        } else if (topic === rfidTopic) {
+                            handleRFIDMessage(payload);
+                        }
+                    } catch (e) {
+                        console.error('Error parsing message:', e);
+                    }
+                });
+
+                state.mqtt.on('error', (err) => {
+                    console.error('MQTT Error:', err);
+                    alert('Connection error: ' + err.message);
+                    updateStatus('Connection Error', false);
+                    document.getElementById('connectBtn').disabled = false;
+                });
+
+                state.mqtt.on('offline', () => {
+                    console.log('⚠️  MQTT Offline');
+                    updateStatus('Offline', false);
+                });
+
+                state.mqtt.on('close', () => {
+                    console.log('⚠️  MQTT Connection Closed');
+                    updateStatus('Disconnected', false);
+                });
+
+            } catch (error) {
+                console.error('Connection error:', error);
+                alert('Failed to connect: ' + error.message);
+                document.getElementById('connectBtn').disabled = false;
+                updateStatus('Connection Failed', false);
+            }
+        }
+
+        function disconnectMQTT() {
+            if (state.mqtt) {
+                state.mqtt.end();
+                state.mqtt = null;
+            }
+            updateStatus('Disconnected', false);
+            document.getElementById('connectBtn').style.display = 'inline-block';
+            document.getElementById('disconnectBtn').classList.remove('show');
+            document.getElementById('connectBtn').disabled = false;
+        }
+
+        // ============ MESSAGE HANDLERS ============
+        function handleGPSMessage(payload) {
+            const deviceId = payload.dID;
+            const lat = payload.lat;
+            const lon = payload.lon;
+            const timestamp = payload.dTS || Math.floor(Date.now() / 1000);
+
+            if (!deviceId || lat === undefined || lon === undefined) {
+                console.warn('Invalid GPS payload:', payload);
+                return;
+            }
+
+            // Update state
+            state.devices.set(deviceId, {
+                deviceId,
+                latitude: lat,
+                longitude: lon,
+                timestamp,
+                lastUpdate: new Date(timestamp * 1000).toLocaleTimeString()
+            });
+
+            // Update map
+            updateMarker(deviceId, lat, lon);
+            updateStats();
+            updateLastUpdateTime();
+            fitMapBounds();
+
+            console.log(`📍 GPS: ${deviceId} at (${lat.toFixed(4)}, ${lon.toFixed(4)})`);
+        }
+
+        function handleRFIDMessage(payload) {
+            const deviceId = payload.dID;
+            const tagUid = payload.uID;
+            const message = payload.msg || 'N/A';
+            const lat = payload.lat;
+            const lon = payload.lon;
+            const timestamp = payload.dTS || Math.floor(Date.now() / 1000);
+
+            if (!deviceId || !tagUid || lat === undefined || lon === undefined) {
+                console.warn('Invalid RFID payload:', payload);
+                return;
+            }
+
+            const scanData = {
+                deviceId,
+                tagUID: tagUid,
+                message,
+                latitude: lat,
+                longitude: lon,
+                timestamp,
+                scannedAt: new Date(timestamp * 1000).toLocaleTimeString()
+            };
+
+            state.rfidScans.unshift(scanData);
+            if (state.rfidScans.length > 100) {
+                state.rfidScans.pop();
+            }
+
+            updateRFIDTable();
+            updateStats();
+            updateLastUpdateTime();
+
+            console.log(`📡 RFID: ${deviceId} scanned ${tagUid} at (${lat.toFixed(4)}, ${lon.toFixed(4)})`);
+        }
+
+        // ============ MAP MARKER MANAGEMENT ============
+        function updateMarker(deviceId, lat, lon) {
+            if (state.markers.has(deviceId)) {
+                const marker = state.markers.get(deviceId);
+                marker.setLatLng([lat, lon]);
+            } else {
+                const marker = L.marker([lat, lon])
+                    .addTo(state.map)
+                    .bindPopup(`<b>${deviceId}</b><br>Lat: ${lat.toFixed(6)}<br>Lon: ${lon.toFixed(6)}`);
+                state.markers.set(deviceId, marker);
+            }
+        }
+
+        function fitMapBounds() {
+            if (state.markers.size === 0) return;
+            const group = L.featureGroup([...state.markers.values()]);
+            state.map.fitBounds(group.getBounds().pad(0.1), { maxZoom: 15 });
+        }
+
+        // ============ TABLE MANAGEMENT ============
+        function updateRFIDTable() {
+            const tbody = document.getElementById('rfidBody');
+            if (state.rfidScans.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-message">Waiting for data...</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = state.rfidScans.slice(0, 50).map(scan => `
+                <tr>
+                    <td class="device-id">${escapeHtml(scan.deviceId)}</td>
+                    <td class="tag-uid">${escapeHtml(scan.tagUID)}</td>
+                    <td>${escapeHtml(scan.message)}</td>
+                    <td>${scan.latitude.toFixed(4)}, ${scan.longitude.toFixed(4)}</td>
+                    <td>${scan.scannedAt}</td>
+                </tr>
+            `).join('');
+        }
+
+        // ============ STATS & UI UPDATES ============
+        function updateStats() {
+            document.getElementById('deviceCount').textContent = state.devices.size;
+            document.getElementById('scanCount').textContent = state.rfidScans.length;
+        }
+
+        function updateLastUpdateTime() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('lastUpdate').textContent = `${hours}:${minutes}`;
+        }
+
+        function updateStatus(text, connected) {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+
+            statusText.textContent = text;
+            state.connected = connected;
+
+            if (connected) {
+                indicator.classList.add('connected');
+                statusText.classList.add('connected');
+            } else {
+                indicator.classList.remove('connected');
+                statusText.classList.remove('connected');
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ============ INITIALIZATION ============
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            updateStats();
+            updateLastUpdateTime();
+            console.log('✅ Dashboard ready');
+        });
+    </script>
+</body>
+</html>

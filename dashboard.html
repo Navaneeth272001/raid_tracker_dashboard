@@ -345,8 +345,8 @@
                     <input 
                         type="text" 
                         id="mqtt-endpoint" 
-                        placeholder="ws://broker.example.com:8081"
-                        value="ws://localhost:8081"
+                        placeholder="ws://test.mosquitto.org:8081"
+                        value="ws://localhost:9001"
                     >
                 </div>
                 <div class="config-group">
@@ -426,18 +426,16 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
         // ============ STATE MANAGEMENT ============
         const state = {
             devices: new Map(),
             rfidScans: [],
-            mqttClient: null,
-            wsClient: null,
+            socketClient: null,
             map: null,
             markers: new Map(),
-            isConnected: false,
-            mqttConnected: false
+            isConnected: false
         };
 
         // ============ MAP INITIALIZATION ============
@@ -449,8 +447,8 @@
             }).addTo(state.map);
         }
 
-        // ============ MQTT CONNECTION ============
-        async function connectMQTT() {
+        // ============ SOCKET.IO CONNECTION ============
+        function connectMQTT() {
             const endpoint = document.getElementById('mqtt-endpoint').value.trim();
             const gpsTopic = document.getElementById('gps-topic').value.trim();
             const rfidTopic = document.getElementById('rfid-topic').value.trim();
@@ -464,49 +462,73 @@
                 document.getElementById('connect-btn').disabled = true;
                 updateStatus('Connecting...', false);
 
-                state.mqttClient = mqtt.connect(endpoint, {
-                    protocolVersion: 4,
-                    reconnectPeriod: 5000,
-                    connectTimeout: 10000
+                // Connect to backend Socket.io server
+                if (state.socketClient) {
+                    state.socketClient.disconnect();
+                }
+
+                state.socketClient = io(window.location.origin, {
+                    reconnection: true,
+                    reconnectionDelay: 1000,
+                    reconnectionDelayMax: 5000,
+                    reconnectionAttempts: 5
                 });
 
-                state.mqttClient.on('connect', () => {
-                    console.log('Connected to MQTT broker');
-                    state.mqttConnected = true;
-                    state.mqttClient.subscribe(gpsTopic);
-                    state.mqttClient.subscribe(rfidTopic);
+                state.socketClient.on('connect', () => {
+                    console.log('Connected to backend');
+                    
+                    // Tell backend to connect to MQTT broker
+                    state.socketClient.emit('connect_mqtt', {
+                        clientId: `dashboard-${Date.now()}`,
+                        brokerUrl: endpoint,
+                        gpsTopic: gpsTopic,
+                        rfidTopic: rfidTopic
+                    });
+                });
+
+                state.socketClient.on('mqtt_connected', (data) => {
+                    console.log('MQTT Connected');
                     updateStatus('Connected', true);
                     document.getElementById('connect-btn').style.display = 'none';
                     document.getElementById('disconnect-btn').classList.add('show');
                 });
 
-                state.mqttClient.on('message', (topic, message) => {
-                    try {
-                        const payload = JSON.parse(message.toString());
-
-                        if (topic === gpsTopic) {
-                            handleGPSData(payload);
-                        } else if (topic === rfidTopic) {
-                            handleRFIDData(payload);
-                        }
-                    } catch (e) {
-                        console.error('Error parsing message:', e);
+                state.socketClient.on('mqtt_status', (data) => {
+                    if (data.status === 'connected') {
+                        updateStatus('Connected', true);
+                    } else if (data.status === 'error') {
+                        updateStatus('Connection Error', false);
+                        alert('MQTT Error: ' + data.error);
+                    } else {
+                        updateStatus('Disconnected', false);
                     }
                 });
 
-                state.mqttClient.on('error', (error) => {
-                    console.error('MQTT Error:', error);
+                state.socketClient.on('gps_update', (data) => {
+                    handleGPSData(data);
+                });
+
+                state.socketClient.on('rfid_scan', (data) => {
+                    handleRFIDData(data);
+                });
+
+                state.socketClient.on('mqtt_error', (data) => {
+                    console.error('MQTT Error:', data.error);
+                    alert('Connection Error: ' + data.error);
                     updateStatus('Connection Error', false);
+                    document.getElementById('connect-btn').disabled = false;
                 });
 
-                state.mqttClient.on('offline', () => {
-                    state.mqttConnected = false;
+                state.socketClient.on('disconnect', () => {
+                    console.log('Disconnected from backend');
                     updateStatus('Disconnected', false);
                 });
 
-                state.mqttClient.on('disconnect', () => {
-                    state.mqttConnected = false;
-                    updateStatus('Disconnected', false);
+                state.socketClient.on('error', (error) => {
+                    console.error('Socket Error:', error);
+                    alert('Connection Error: ' + error);
+                    document.getElementById('connect-btn').disabled = false;
+                    updateStatus('Connection Error', false);
                 });
 
             } catch (error) {
@@ -518,10 +540,9 @@
         }
 
         function disconnectMQTT() {
-            if (state.mqttClient) {
-                state.mqttClient.end(true);
-                state.mqttClient = null;
-                state.mqttConnected = false;
+            if (state.socketClient) {
+                state.socketClient.disconnect();
+                state.socketClient = null;
             }
             updateStatus('Disconnected', false);
             document.getElementById('connect-btn').style.display = 'inline-block';
@@ -530,26 +551,25 @@
         }
 
         // ============ DATA HANDLERS ============
-        function handleGPSData(payload) {
-            const { dID, dTS, lat, lon } = payload;
+        function handleGPSData(data) {
+            const { deviceId, latitude, longitude, lastUpdate } = data;
 
-            if (!dID || lat === undefined || lon === undefined) {
-                console.warn('Invalid GPS payload:', payload);
+            if (!deviceId || latitude === undefined || longitude === undefined) {
+                console.warn('Invalid GPS data:', data);
                 return;
             }
 
             // Update device info
-            if (!state.devices.has(dID)) {
-                state.devices.set(dID, {});
+            if (!state.devices.has(deviceId)) {
+                state.devices.set(deviceId, {});
             }
-            const device = state.devices.get(dID);
-            device.lat = lat;
-            device.lon = lon;
-            device.lastUpdateTime = dTS * 1000; // Convert to ms
-            device.lastUpdate = new Date(device.lastUpdateTime);
+            const device = state.devices.get(deviceId);
+            device.lat = latitude;
+            device.lon = longitude;
+            device.lastUpdate = new Date(lastUpdate);
 
             // Update map marker
-            updateMarker(dID, lat, lon, device.lastUpdate);
+            updateMarker(deviceId, latitude, longitude, device.lastUpdate);
 
             // Update stats
             updateStats();
@@ -559,22 +579,22 @@
             fitMapBounds();
         }
 
-        function handleRFIDData(payload) {
-            const { dID, uID, msg, lat, lon, dTS } = payload;
+        function handleRFIDData(data) {
+            const { deviceId, tagUID, message, latitude, longitude, scannedAt } = data;
 
-            if (!dID || !uID || lat === undefined || lon === undefined) {
-                console.warn('Invalid RFID payload:', payload);
+            if (!deviceId || !tagUID || latitude === undefined || longitude === undefined) {
+                console.warn('Invalid RFID data:', data);
                 return;
             }
 
             const scanData = {
-                deviceId: dID,
-                tagUID: uID,
-                message: msg || 'N/A',
-                latitude: lat,
-                longitude: lon,
-                timestamp: new Date(dTS * 1000),
-                displayTime: formatTime(new Date(dTS * 1000))
+                deviceId: deviceId,
+                tagUID: tagUID,
+                message: message || 'N/A',
+                latitude: latitude,
+                longitude: longitude,
+                timestamp: new Date(scannedAt),
+                displayTime: formatTime(new Date(scannedAt))
             };
 
             // Add to scans
