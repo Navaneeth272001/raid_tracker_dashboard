@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IoT Device Dashboard - GPS & RFID Tracking</title>
+    <title>Real Time Inventory Device Tracking</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
     <style>
         * {
@@ -13,50 +13,107 @@
         }
 
         :root {
-            --color-primary: #208090;
-            --color-primary-hover: #1a6673;
-            --color-success: #2bb875;
-            --color-error: #dc3545;
-            --color-warning: #ffc107;
-            --color-bg: #fafaf8;
-            --color-surface: #ffffff;
-            --color-text: #133b3b;
-            --color-text-secondary: #666666;
-            --color-border: #e0e0e0;
+            --color-primary: #38bdf8;
+            --color-primary-hover: #0ea5e9;
+            --color-success: #22c55e;
+            --color-error: #f97373;
+            --color-warning: #eab308;
+            --color-bg: #020617;
+            --color-bg-alt: #020617;
+            --color-surface: #020617;
+            --color-surface-elevated: #020617;
+            --color-surface-soft: #020617;
+            --color-text: #e5e7eb;
+            --color-text-secondary: #9ca3af;
+            --color-border: #1f2937;
+            --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.9);
+            --shadow-subtle: 0 8px 24px rgba(15, 23, 42, 0.6);
+            --radius-lg: 14px;
+            --radius-md: 10px;
+            --radius-pill: 999px;
+            --transition-fast: 180ms ease-out;
         }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--color-bg);
+            background:
+                radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 55%),
+                radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.18), transparent 55%),
+                #020617;
             color: var(--color-text);
+            height: 100vh;
+            overflow: hidden;
         }
 
         .container {
             display: flex;
             flex-direction: column;
             height: 100vh;
+            padding: 12px;
+            gap: 10px;
         }
 
+        /* ====================== HEADER / TOP BAR ====================== */
+
         .header {
-            background: var(--color-surface);
-            border-bottom: 1px solid var(--color-border);
-            padding: 16px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            max-height: 280px;
-            overflow-y: auto;
+            background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 60%),
+                        linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.98));
+            border-radius: var(--radius-lg);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            box-shadow: var(--shadow-soft);
+            padding: 14px 18px 12px 18px;
+            display: grid;
+            grid-template-columns: 1.8fr 2.4fr 1.8fr;
+            gap: 18px;
+            align-items: center;
+            min-height: 110px;
+            max-height: 180px;
+        }
+
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .header-title-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .title-badge {
+            width: 32px;
+            height: 32px;
+            border-radius: 12px;
+            background: radial-gradient(circle at 30% 0%, #38bdf8, #0f172a);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 40px rgba(56, 189, 248, 0.35);
+            font-size: 18px;
         }
 
         .header h1 {
-            font-size: 24px;
-            margin-bottom: 12px;
-            color: var(--color-primary);
+            font-size: 20px;
+            font-weight: 650;
+            letter-spacing: 0.02em;
+            color: #f9fafb;
         }
+
+        .header-subtitle {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+        }
+
+        /* Connection & config */
 
         .config-panel {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr 1fr;
-            gap: 12px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px 12px;
             align-items: end;
+            font-size: 11px;
         }
 
         .config-group {
@@ -65,55 +122,99 @@
         }
 
         .config-group label {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
-            margin-bottom: 4px;
+            margin-bottom: 3px;
             text-transform: uppercase;
             color: var(--color-text-secondary);
+            letter-spacing: 0.06em;
         }
 
         .config-group input {
-            padding: 8px 12px;
-            border: 1px solid var(--color-border);
-            border-radius: 8px;
-            font-size: 13px;
-            background: var(--color-surface);
+            padding: 7px 10px;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            border-radius: var(--radius-md);
+            font-size: 12px;
+            background: rgba(15, 23, 42, 0.85);
             color: var(--color-text);
+            outline: none;
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+        }
+
+        .config-group input::placeholder {
+            color: rgba(148, 163, 184, 0.6);
         }
 
         .config-group input:focus {
-            outline: none;
             border-color: var(--color-primary);
-            box-shadow: 0 0 0 3px rgba(32, 128, 144, 0.1);
+            box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.6);
+            background: rgba(15, 23, 42, 1);
         }
 
-        .status-group {
+        .header-right {
             display: flex;
+            flex-direction: column;
             gap: 8px;
+            align-items: flex-end;
+        }
+
+        .status-row {
+            display: flex;
             align-items: center;
+            gap: 10px;
+        }
+
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 11px;
+            border-radius: var(--radius-pill);
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            font-size: 11px;
         }
 
         .status-indicator {
-            width: 12px;
-            height: 12px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
-            background: #999;
-            animation: pulse 2s infinite;
+            background: #6b7280;
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.0);
+            animation: pulse-neutral 2.4s infinite;
         }
 
         .status-indicator.connected {
             background: var(--color-success);
-            box-shadow: 0 0 10px var(--color-success);
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+            animation: pulse-connected 1.8s infinite;
         }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        @keyframes pulse-connected {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+            }
+            70% {
+                transform: scale(1.16);
+                box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+            }
+        }
+
+        @keyframes pulse-neutral {
+            0%, 100% { opacity: 0.65; }
+            50% { opacity: 1; }
         }
 
         .status-text {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--color-text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
         }
 
         .status-text.connected {
@@ -121,156 +222,481 @@
             font-weight: 600;
         }
 
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 200ms;
-            text-transform: uppercase;
-        }
-
-        .btn-primary {
-            background: var(--color-primary);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: var(--color-primary-hover);
-        }
-
-        .btn-primary:disabled {
-            background: #999;
-            cursor: not-allowed;
-            opacity: 0.6;
-        }
-
-        .btn-disconnect {
-            background: var(--color-error);
-            color: white;
-            display: none;
-        }
-
-        .btn-disconnect.show {
-            display: block;
-        }
-
         .btn-row {
             display: flex;
             gap: 8px;
         }
 
-        .logs {
-            background: #f5f5f5;
-            border: 1px solid var(--color-border);
-            border-radius: 8px;
-            padding: 12px;
+        .btn {
+            padding: 7px 14px;
+            border: none;
+            border-radius: var(--radius-pill);
             font-size: 11px;
-            font-family: monospace;
-            max-height: 80px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: var(--color-primary);
+            color: #020617;
+            box-shadow: 0 0 24px rgba(56, 189, 248, 0.50);
+        }
+
+        .btn-primary:hover {
+            background: var(--color-primary-hover);
+            transform: translateY(-0.5px);
+            box-shadow: 0 0 32px rgba(56, 189, 248, 0.65);
+        }
+
+        .btn-primary:disabled {
+            background: #4b5563;
+            cursor: not-allowed;
+            opacity: 0.6;
+            box-shadow: none;
+        }
+
+        .btn-disconnect {
+            background: rgba(248, 113, 113, 0.1);
+            color: #fecaca;
+            border: 1px solid rgba(248, 113, 113, 0.6);
+            display: none;
+        }
+
+        .btn-disconnect.show {
+            display: inline-flex;
+        }
+
+        .btn-disconnect:hover {
+            background: rgba(248, 113, 113, 0.2);
+            transform: translateY(-0.5px);
+        }
+
+        .header-kpis {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .kpi-card {
+            padding: 7px 10px;
+            border-radius: 12px;
+            background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 65%),
+                        rgba(15, 23, 42, 0.96);
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .kpi-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--color-text-secondary);
+        }
+
+        .kpi-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #f9fafb;
+        }
+
+        .kpi-sub {
+            font-size: 10px;
+            color: rgba(148, 163, 184, 0.85);
+        }
+
+        /* Logs */
+
+        .logs {
+            margin-top: 8px;
+            background: rgba(15, 23, 42, 0.95);
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            padding: 8px 10px;
+            font-size: 11px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            max-height: 70px;
             overflow-y: auto;
-            margin-top: 12px;
+            box-shadow: var(--shadow-subtle);
+        }
+
+        .logs::-webkit-scrollbar {
+            height: 5px;
+            width: 5px;
+        }
+
+        .logs::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.7);
+            border-radius: 999px;
         }
 
         .log-entry {
-            margin: 2px 0;
-            padding: 2px 4px;
+            margin: 1px 0;
+            padding: 1px 2px;
+            white-space: nowrap;
         }
 
-        .log-info { color: #0066cc; }
-        .log-success { color: #00aa00; }
-        .log-error { color: #cc0000; }
-        .log-warning { color: #ff6600; }
+        .log-info { color: #60a5fa; }
+        .log-success { color: #4ade80; }
+        .log-error { color: #fb7185; }
+        .log-warning { color: #fbbf24; }
+
+        /* ====================== MAIN LAYOUT ====================== */
 
         .content {
-            display: flex;
+            display: grid;
+            grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.2fr);
+            gap: 10px;
             flex: 1;
-            gap: 12px;
-            padding: 12px;
             overflow: hidden;
         }
+
+        /* Map / RTLS canvas */
 
         .map-section {
-            flex: 0 0 70%;
-            background: var(--color-surface);
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            position: relative;
+            background: rgba(15, 23, 42, 0.98);
+            border-radius: var(--radius-lg);
+            border: 1px solid rgba(31, 41, 55, 0.9);
+            box-shadow: var(--shadow-soft);
             overflow: hidden;
-        }
-
-        #map { width: 100%; height: 100%; }
-
-        .table-section {
-            flex: 0 0 30%;
             display: flex;
             flex-direction: column;
-            background: var(--color-surface);
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .map-header {
+            padding: 10px 14px;
+            border-bottom: 1px solid rgba(55, 65, 81, 0.9);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(90deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.95));
+        }
+
+        .map-title {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #e5e7eb;
+        }
+
+        .map-sub {
+            font-size: 11px;
+            color: rgba(148, 163, 184, 0.85);
+        }
+
+        .map-legend {
+            display: flex;
+            gap: 10px;
+            font-size: 10px;
+            color: var(--color-text-secondary);
+        }
+
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+        }
+
+        .legend-dot.device { background: #38bdf8; box-shadow: 0 0 7px rgba(56, 189, 248, 0.9); }
+        .legend-dot.rfid { background: #f97316; box-shadow: 0 0 7px rgba(249, 115, 22, 0.9); }
+
+        #map {
+            width: 100%;
+            flex: 1;
+        }
+
+        /* Sidebar: devices + RFID */
+
+        .table-section {
+            background: rgba(15, 23, 42, 0.98);
+            border-radius: var(--radius-lg);
+            border: 1px solid rgba(31, 41, 55, 0.9);
+            box-shadow: var(--shadow-soft);
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
         }
 
-        .table-header {
-            padding: 16px;
-            border-bottom: 1px solid var(--color-border);
-            background: linear-gradient(135deg, #f0f7f8, #ffffff);
+        .sidebar-header {
+            padding: 10px 14px 8px 14px;
+            border-bottom: 1px solid rgba(55, 65, 81, 0.9);
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.9));
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
         }
 
-        .table-header h3 {
-            font-size: 14px;
+        .sidebar-header h3 {
+            font-size: 13px;
             font-weight: 600;
-            color: var(--color-primary);
-            margin: 0;
+            color: #e5e7eb;
         }
 
-        .table-wrapper { flex: 1; overflow-y: auto; }
+        .sidebar-tagline {
+            font-size: 11px;
+            color: rgba(148, 163, 184, 0.9);
+        }
+
+        .sidebar-content {
+            display: grid;
+            grid-template-rows: minmax(0, 0.9fr) minmax(0, 1.1fr);
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Device list */
+
+        .device-panel {
+            padding: 10px 10px 6px 10px;
+            border-bottom: 1px solid rgba(31, 41, 55, 0.9);
+            overflow-y: auto;
+        }
+
+        .device-panel-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--color-text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .device-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .device-card {
+            padding: 6px 8px;
+            border-radius: 10px;
+            background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.14), transparent 70%),
+                        rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(55, 65, 81, 1);
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr);
+            gap: 4px 8px;
+            font-size: 11px;
+        }
+
+        .device-id-label {
+            font-weight: 600;
+            color: #e0f2fe;
+            font-size: 11px;
+        }
+
+        .device-meta {
+            font-size: 10px;
+            color: rgba(148, 163, 184, 0.9);
+        }
+
+        .device-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.09em;
+            border: 1px solid rgba(56, 189, 248, 0.7);
+            color: #e0f2fe;
+            background: rgba(15, 23, 42, 0.9);
+        }
+
+        .device-latlon {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 10px;
+            color: #9ca3af;
+        }
+
+        .device-seen {
+            font-size: 10px;
+            color: #a3e635;
+            text-align: right;
+        }
+
+        /* RFID table */
+
+        .rfid-panel {
+            padding: 6px 0 0 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .table-wrapper {
+            flex: 1;
+            overflow-y: auto;
+        }
 
         .rfid-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         .rfid-table thead th {
             position: sticky;
             top: 0;
-            background: var(--color-bg);
-            padding: 8px 12px;
+            background: rgba(15, 23, 42, 0.98);
+            padding: 6px 10px;
             text-align: left;
             font-weight: 600;
-            border-bottom: 2px solid var(--color-border);
-            font-size: 11px;
+            border-bottom: 1px solid rgba(31, 41, 55, 1);
+            font-size: 10px;
             text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--color-text-secondary);
+            backdrop-filter: blur(4px);
+            z-index: 1;
         }
 
-        .rfid-table tbody tr { border-bottom: 1px solid #f0f0f0; }
-        .rfid-table tbody tr:hover { background: rgba(32, 128, 144, 0.05); }
-        .rfid-table td { padding: 8px 12px; }
-        .rfid-table .device-id { font-weight: 600; color: var(--color-primary); }
-        .rfid-table .tag-uid { font-family: monospace; background: rgba(32, 128, 144, 0.1); padding: 2px 4px; border-radius: 3px; font-size: 11px; }
+        .rfid-table tbody tr {
+            border-bottom: 1px solid rgba(31, 41, 55, 0.9);
+            transition: background var(--transition-fast), transform var(--transition-fast);
+        }
 
-        .empty-message { padding: 16px; text-align: center; color: var(--color-text-secondary); font-style: italic; }
+        .rfid-table tbody tr:nth-child(even) {
+            background: rgba(15, 23, 42, 0.9);
+        }
+
+        .rfid-table tbody tr:hover {
+            background: rgba(30, 64, 175, 0.8);
+            transform: translateX(1px);
+        }
+
+        .rfid-table td {
+            padding: 5px 10px;
+            vertical-align: middle;
+        }
+
+        .rfid-table .device-id {
+            font-weight: 600;
+            color: #e0f2fe;
+        }
+
+        .rfid-table .tag-uid {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            background: rgba(56, 189, 248, 0.12);
+            padding: 2px 4px;
+            border-radius: 999px;
+            font-size: 10px;
+            color: #bae6fd;
+        }
+
+        .rfid-location {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 10px;
+            color: #9ca3af;
+        }
+
+        .rfid-time {
+            font-size: 10px;
+            color: #d1fae5;
+        }
+
+        .empty-message {
+            padding: 16px;
+            text-align: center;
+            color: var(--color-text-secondary);
+            font-style: italic;
+        }
 
         .stats-bar {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            padding: 12px;
-            background: rgba(32, 128, 144, 0.05);
-            border-top: 1px solid var(--color-border);
+            display: none; /* KPIs moved to header; keep IDs only */
         }
 
-        .stat-item { text-align: center; }
-        .stat-value { font-size: 20px; font-weight: 700; color: var(--color-primary); }
-        .stat-label { font-size: 11px; color: var(--color-text-secondary); text-transform: uppercase; }
+        /* Responsive tweaks */
+
+        @media (max-width: 1180px) {
+            .header {
+                grid-template-columns: 1.7fr 2.3fr;
+                grid-template-rows: auto auto;
+                max-height: 220px;
+            }
+            .header-right {
+                grid-column: 1 / -1;
+                align-items: flex-start;
+            }
+            .header-kpis {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 900px) {
+            body {
+                overflow: auto;
+            }
+            .container {
+                height: auto;
+            }
+            .content {
+                grid-template-columns: minmax(0, 1fr);
+                grid-template-rows: auto auto;
+                height: auto;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .header {
+                grid-template-columns: 1fr;
+                max-height: none;
+            }
+            .config-panel {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- =================== HEADER / CONTROL PLANE =================== -->
         <div class="header">
-            <h1>🚀 IoT Device Dashboard</h1>
+            <div class="header-left">
+                <div class="header-title-row">
+                    <div class="title-badge">📡</div>
+                    <div>
+                        <h1>IoT RTLS Control Tower</h1>
+                        <div class="header-subtitle">
+                            Real-time asset visibility across all instrumented devices.
+                        </div>
+                    </div>
+                </div>
+                <div class="header-kpis">
+                    <div class="kpi-card">
+                        <div class="kpi-label">Active Devices</div>
+                        <div class="kpi-value" id="deviceCount">0</div>
+                        <div class="kpi-sub">Reporting GPS in the last session</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">RFID Scans</div>
+                        <div class="kpi-value" id="scanCount">0</div>
+                        <div class="kpi-sub">Cumulative events in current view</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Last Update</div>
+                        <div class="kpi-value" id="lastUpdate">--</div>
+                        <div class="kpi-sub">Local time of last inbound packet</div>
+                    </div>
+                </div>
+            </div>
+
             <div class="config-panel">
                 <div class="config-group">
                     <label>MQTT Broker (mqtt://ip:port)</label>
@@ -292,58 +718,112 @@
                     <label>Password (optional)</label>
                     <input type="password" id="password">
                 </div>
-                <div style="grid-column: span 1;"></div>
-                <div class="status-group">
-                    <div class="status-indicator" id="statusIndicator"></div>
-                    <span class="status-text" id="statusText">Disconnected</span>
+            </div>
+
+            <div class="header-right">
+                <div class="status-row">
+                    <div class="status-chip">
+                        <div class="status-indicator" id="statusIndicator"></div>
+                        <span class="status-text" id="statusText">Disconnected</span>
+                    </div>
                 </div>
                 <div class="btn-row">
-                    <button class="btn btn-primary" onclick="connect()">Connect</button>
-                    <button class="btn btn-disconnect" id="disconnectBtn" onclick="disconnect()">Disconnect</button>
+                    <button class="btn btn-primary" onclick="connect()">
+                        🔗 Connect
+                    </button>
+                    <button class="btn btn-disconnect" id="disconnectBtn" onclick="disconnect()">
+                        ✕ Disconnect
+                    </button>
                 </div>
+                <div class="logs" id="logBox"></div>
             </div>
-            <div class="logs" id="logBox"></div>
         </div>
 
+        <!-- =================== MAIN VISUAL LAYER =================== -->
         <div class="content">
-            <div class="map-section"><div id="map"></div></div>
-            <div class="table-section">
-                <div class="table-header"><h3>📡 RFID Scans</h3></div>
-                <div class="table-wrapper">
-                    <table class="rfid-table">
-                        <thead>
-                            <tr><th>Device</th><th>Tag UID</th><th>Message</th><th>Location</th><th>Time</th></tr>
-                        </thead>
-                        <tbody id="rfidBody">
-                            <tr><td colspan="5" class="empty-message">Waiting for data...</td></tr>
-                        </tbody>
-                    </table>
+            <!-- MAP / RTLS CANVAS -->
+            <div class="map-section">
+                <div class="map-header">
+                    <div>
+                        <div class="map-title">Field Asset Positioning</div>
+                        <div class="map-sub">Live GPS telemetry projected on street-level maps.</div>
+                    </div>
+                    <div class="map-legend">
+                        <div class="legend-item">
+                            <span class="legend-dot device"></span> Device Position
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot rfid"></span> RFID Event (Location at Scan)
+                        </div>
+                    </div>
                 </div>
-                <div class="stats-bar">
-                    <div class="stat-item">
-                        <div class="stat-value" id="deviceCount">0</div>
-                        <div class="stat-label">Active Devices</div>
+                <div id="map"></div>
+            </div>
+
+            <!-- SIDEBAR: DEVICES + RFID TABLE -->
+            <div class="table-section">
+                <div class="sidebar-header">
+                    <h3>RTLS Event Stream</h3>
+                    <div class="sidebar-tagline">Device health, RFID events & last-known locations.</div>
+                </div>
+                <div class="sidebar-content">
+                    <!-- Active devices list -->
+                    <div class="device-panel">
+                        <div class="device-panel-title">Active Device Footprint</div>
+                        <div id="deviceList" class="device-list">
+                            <!-- populated dynamically -->
+                        </div>
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="scanCount">0</div>
-                        <div class="stat-label">Total Scans</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="lastUpdate">--</div>
-                        <div class="stat-label">Last Update</div>
+
+                    <!-- RFID table -->
+                    <div class="rfid-panel">
+                        <div class="table-wrapper">
+                            <table class="rfid-table">
+                                <thead>
+                                    <tr>
+                                        <th>Device</th>
+                                        <th>Tag UID</th>
+                                        <th>Message</th>
+                                        <th>Location</th>
+                                        <th>Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rfidBody">
+                                    <tr>
+                                        <td colspan="5" class="empty-message">Waiting for field events...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- keep stats-bar hidden but IDs in DOM to not break anything -->
+                        <div class="stats-bar">
+                            <div class="stat-item">
+                                <div class="stat-value" id="deviceCount">0</div>
+                                <div class="stat-label">Active Devices</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="scanCount">0</div>
+                                <div class="stat-label">Total Scans</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="lastUpdate">--</div>
+                                <div class="stat-label">Last Update</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- =================== SCRIPTS =================== -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const state = {
-            devices: new Map(),
+            devices: new Map(),   // deviceId -> { ...data, seenAt }
             rfidScans: [],
-            markers: new Map(),
+            markers: new Map(),   // deviceId -> Leaflet marker
             map: null,
             socket: null
         };
@@ -352,16 +832,22 @@
         function addLog(msg, type = 'info') {
             const ts = new Date().toLocaleTimeString();
             logs.unshift({ msg, type, ts });
-            if (logs.length > 20) logs.pop();
-            document.getElementById('logBox').innerHTML = logs.map(l => 
+            if (logs.length > 40) logs.pop();
+            document.getElementById('logBox').innerHTML = logs.map(l =>
                 `<div class="log-entry log-${l.type}">[${l.ts}] ${l.msg}</div>`
             ).join('');
         }
 
         function initMap() {
-            state.map = L.map('map').setView([20.5937, 78.9629], 5);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap', maxZoom: 19
+            // Center on India with a dark basemap theme
+            state.map = L.map('map', {
+                zoomControl: true,
+                worldCopyJump: true
+            }).setView([20.5937, 78.9629], 5);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap, &copy; CARTO',
+                maxZoom: 19
             }).addTo(state.map);
         }
 
@@ -384,9 +870,13 @@
                 state.socket.on('mqtt_status', handleStatus);
             }
 
-            addLog(`🔌 Connecting to ${broker}...`, 'warning');
+            addLog(`Connecting to MQTT broker @ ${broker}`, 'warning');
             state.socket.emit('connect_mqtt', {
-                broker, gpsTopic, rfidTopic, username: username || null, password: password || null
+                broker,
+                gpsTopic,
+                rfidTopic,
+                username: username || null,
+                password: password || null
             });
         }
 
@@ -394,39 +884,52 @@
             if (state.socket) {
                 state.socket.emit('disconnect_mqtt');
             }
-            addLog('🛑 Disconnected', 'info');
+            addLog('Manual disconnect requested from control tower.', 'info');
             document.getElementById('statusIndicator').classList.remove('connected');
+            document.getElementById('statusText').classList.remove('connected');
             document.getElementById('statusText').textContent = 'Disconnected';
             document.getElementById('disconnectBtn').classList.remove('show');
         }
 
         function handleGPS(data) {
-            state.devices.set(data.deviceId, data);
-            updateMarker(data.deviceId, data.latitude, data.longitude);
+            if (!data || typeof data.latitude !== 'number' || typeof data.longitude !== 'number') {
+                addLog('GPS update with invalid coordinates dropped.', 'error');
+                return;
+            }
+
+            const enriched = {
+                ...data,
+                seenAt: new Date().toLocaleTimeString()
+            };
+
+            state.devices.set(data.deviceId, enriched);
+            updateMarker(data.deviceId, enriched.latitude, enriched.longitude);
+            renderDeviceList();
             updateStats();
-            addLog(`📍 ${data.deviceId}`, 'success');
+            addLog(`GPS fix @ ${data.deviceId} | (${enriched.latitude.toFixed(5)}, ${enriched.longitude.toFixed(5)})`, 'success');
         }
 
         function handleRFID(data) {
             state.rfidScans.unshift(data);
-            if (state.rfidScans.length > 100) state.rfidScans.pop();
+            if (state.rfidScans.length > 200) state.rfidScans.pop();
             updateRFIDTable();
             updateStats();
-            addLog(`📡 ${data.deviceId} → ${data.tagUID}`, 'success');
+            addLog(`RFID scan | Device: ${data.deviceId} | Tag: ${data.tagUID}`, 'success');
         }
 
         function handleStatus(data) {
             if (data.status === 'connected') {
-                addLog('✅ MQTT Connected!', 'success');
+                addLog('MQTT session established. Subscribed to live topics.', 'success');
                 document.getElementById('statusIndicator').classList.add('connected');
                 document.getElementById('statusText').classList.add('connected');
                 document.getElementById('statusText').textContent = 'Connected';
                 document.getElementById('disconnectBtn').classList.add('show');
             } else {
-                addLog(`⚠️  MQTT: ${data.message || data.status}`, 'warning');
+                addLog(`MQTT status: ${data.message || data.status}`, 'warning');
                 document.getElementById('statusIndicator').classList.remove('connected');
                 document.getElementById('statusText').classList.remove('connected');
                 document.getElementById('statusText').textContent = data.message || data.status;
+                document.getElementById('disconnectBtn').classList.remove('show');
             }
         }
 
@@ -434,38 +937,88 @@
             if (state.markers.has(id)) {
                 state.markers.get(id).setLatLng([lat, lon]);
             } else {
-                const marker = L.marker([lat, lon])
+                const marker = L.marker([lat, lon], {
+                    title: id
+                })
                     .addTo(state.map)
                     .bindPopup(`<b>${id}</b><br>Lat: ${lat.toFixed(6)}<br>Lon: ${lon.toFixed(6)}`);
                 state.markers.set(id, marker);
             }
         }
 
-        function updateRFIDTable() {
-            const tbody = document.getElementById('rfidBody');
-            if (!state.rfidScans.length) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty-message">Waiting for data...</td></tr>';
+        function renderDeviceList() {
+            const container = document.getElementById('deviceList');
+            if (!container) return;
+
+            if (!state.devices.size) {
+                container.innerHTML = '<div class="empty-message" style="padding:8px 4px;">No active devices reporting yet.</div>';
                 return;
             }
-            tbody.innerHTML = state.rfidScans.slice(0, 50).map(s => `
-                <tr><td class="device-id">${s.deviceId}</td><td class="tag-uid">${s.tagUID}</td>
-                <td>${s.message}</td><td>${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td>
-                <td>${s.scannedAt}</td></tr>
+
+            const entries = Array.from(state.devices.entries())
+                .map(([deviceId, data]) => ({ deviceId, data }))
+                .sort((a, b) => (a.data.seenAt || '').localeCompare(b.data.seenAt || ''));
+
+            container.innerHTML = entries.map(({ deviceId, data }) => `
+                <div class="device-card">
+                    <div>
+                        <div class="device-id-label">${deviceId}</div>
+                        <div class="device-meta">Mode: GPS + RFID</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <span class="device-badge">Online</span>
+                        <div class="device-seen">Seen: ${data.seenAt || '--'}</div>
+                    </div>
+                    <div class="device-latlon">
+                        Lat: ${Number(data.latitude).toFixed(5)} | Lon: ${Number(data.longitude).toFixed(5)}
+                    </div>
+                    <div class="device-meta" style="text-align:right;">
+                        ${data.speed ? `Speed: ${data.speed} km/h` : '&nbsp;'}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateRFIDTable() {
+            const tbody = document.getElementById('rfidBody');
+            if (!tbody) return;
+
+            if (!state.rfidScans.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-message">Waiting for field events...</td></tr>';
+                return;
+            }
+            tbody.innerHTML = state.rfidScans.slice(0, 80).map(s => `
+                <tr>
+                    <td class="device-id">${s.deviceId}</td>
+                    <td class="tag-uid">${s.tagUID}</td>
+                    <td>${s.message || ''}</td>
+                    <td class="rfid-location">
+                        ${typeof s.latitude === 'number' && typeof s.longitude === 'number'
+                            ? `${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}`
+                            : '--'}
+                    </td>
+                    <td class="rfid-time">${s.scannedAt || ''}</td>
+                </tr>
             `).join('');
         }
 
         function updateStats() {
-            document.getElementById('deviceCount').textContent = state.devices.size;
-            document.getElementById('scanCount').textContent = state.rfidScans.length;
+            const devCountEl = document.querySelectorAll('#deviceCount');
+            const scanCountEl = document.querySelectorAll('#scanCount');
+            const lastUpdateEl = document.querySelectorAll('#lastUpdate');
+
+            devCountEl.forEach(el => el.textContent = state.devices.size);
+            scanCountEl.forEach(el => el.textContent = state.rfidScans.length);
+
             const now = new Date();
-            document.getElementById('lastUpdate').textContent = 
-                String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+            const t = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+            lastUpdateEl.forEach(el => el.textContent = t);
         }
 
         document.addEventListener('DOMContentLoaded', () => {
             initMap();
             updateStats();
-            addLog('✅ Dashboard ready', 'success');
+            addLog('RTLS dashboard booted. Waiting for MQTT connection.', 'info');
         });
     </script>
 </body>
